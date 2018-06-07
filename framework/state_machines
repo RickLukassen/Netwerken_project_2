@@ -1,0 +1,98 @@
+\documentclass[12pt]{article}
+\usepackage{tikz}
+
+\begin{document}
+
+\begin{center}
+\begin{tikzpicture}[scale=0.2]
+\tikzstyle{every node}+=[inner sep=0pt]
+\draw [black] (6.1,-6.3) circle (3);
+\draw (6.1,-6.3) node {$Waiting$};
+\draw [black] (30.8,-6.4) circle (3);
+\draw (30.8,-6.4) node {$s1$};
+\draw [black] (54.1,-6.4) circle (3);
+\draw (54.1,-6.4) node {$s2$};
+\draw [black] (54.1,-50.3) circle (3);
+\draw (54.1,-50.3) node {$s4$};
+\draw [black] (22.7,-40.8) circle (3);
+\draw (22.7,-40.8) node {$s5$};
+\draw [black] (22.7,-23.8) circle (3);
+\draw (22.7,-23.8) node {$s6$};
+\draw [black] (6.1,-55.3) circle (3);
+\draw (6.1,-55.3) node {$s7$};
+\draw [black] (9.1,-6.31) -- (27.8,-6.39);
+\fill [black] (27.8,-6.39) -- (27,-5.88) -- (27,-6.88);
+\draw (18.45,-6.87) node [below] {$connect/SYN$};
+\draw [black] (33.8,-6.4) -- (51.1,-6.4);
+\fill [black] (51.1,-6.4) -- (50.3,-5.9) -- (50.3,-6.9);
+\draw (42.45,-6.9) node [below] {$SYN-ACK/ACK$};
+\draw [black] (51.23,-49.43) -- (25.57,-41.67);
+\fill [black] (25.57,-41.67) -- (26.19,-42.38) -- (26.48,-41.42);
+\draw (44.01,-44.73) node [above] {$disconnect/FIN$};
+\draw [black] (22.7,-37.8) -- (22.7,-26.8);
+\fill [black] (22.7,-26.8) -- (22.2,-27.6) -- (23.2,-27.6);
+\draw (23.2,-32.3) node [right] {$FIN-ACK/ACK$};
+\draw [black] (20.64,-21.62) -- (8.16,-8.48);
+\fill [black] (8.16,-8.48) -- (8.35,-9.4) -- (9.08,-8.71);
+\draw (14.93,-13.58) node [right] {$close_con$};
+\draw [black] (51.12,-50.61) -- (9.08,-54.99);
+\fill [black] (9.08,-54.99) -- (9.93,-55.4) -- (9.83,-54.41);
+\draw (28.79,-51.76) node [above] {$FIN/FIN-ACK$};
+\draw [black] (6.1,-52.3) -- (6.1,-9.3);
+\fill [black] (6.1,-9.3) -- (5.6,-10.1) -- (6.6,-10.1);
+\draw (6.6,-30.8) node [right] {$ACK/close_con$};
+\draw [black] (54.1,-9.4) -- (54.1,-47.3);
+\fill [black] (54.1,-47.3) -- (54.6,-46.5) -- (53.6,-46.5);
+\draw (53.6,-28.35) node [left] {$open_con/SEND_FILE$};
+\draw [black] (56.78,-48.977) arc (144:-144:2.25);
+\draw (61.35,-50.3) node [right] {$ACK/SEND_PACKET$};
+\fill [black] (56.78,-51.62) -- (57.13,-52.5) -- (57.72,-51.69);
+\end{tikzpicture}
+\end{center}
+
+\end{document}
+
+\documentclass[12pt]{article}
+\usepackage{tikz}
+
+\begin{document}
+
+\begin{center}
+\begin{tikzpicture}[scale=0.2]
+\tikzstyle{every node}+=[inner sep=0pt]
+\draw [black] (7.2,-7.4) circle (3);
+\draw (7.2,-7.4) node {$Waiting$};
+\draw [black] (28.2,-7.4) circle (3);
+\draw (28.2,-7.4) node {$s1$};
+\draw [black] (51.2,-7.4) circle (3);
+\draw (51.2,-7.4) node {$s2$};
+\draw [black] (51.2,-53.6) circle (3);
+\draw (51.2,-53.6) node {$s3$};
+\draw [black] (30.4,-31) circle (3);
+\draw (30.4,-31) node {$s4$};
+\draw [black] (10.2,-7.4) -- (25.2,-7.4);
+\fill [black] (25.2,-7.4) -- (24.4,-6.9) -- (24.4,-7.9);
+\draw (17.7,-7.9) node [below] {$SYN/SYN-ACK$};
+\draw [black] (31.2,-7.4) -- (48.2,-7.4);
+\fill [black] (48.2,-7.4) -- (47.4,-6.9) -- (47.4,-7.9);
+\draw (39.7,-7.9) node [below] {$ACK/open_con$};
+\draw [black] (53.235,-5.211) arc (164.82056:-123.17944:2.25);
+\draw (58.26,-4.17) node [right] {$packet/ACK-packet$};
+\fill [black] (54.17,-7.68) -- (54.82,-8.38) -- (55.08,-7.41);
+\draw [black] (53.679,-9.087) arc (52.5667:-52.5667:26.966);
+\fill [black] (53.68,-51.91) -- (54.62,-51.82) -- (54.01,-51.03);
+\draw (64.75,-30.5) node [right] {$FIN/FIN-ACK$};
+\draw [black] (48.205,-53.433) arc (-95.10142:-177.69295:45.024);
+\fill [black] (7.22,-10.4) -- (6.75,-11.22) -- (7.75,-11.18);
+\draw (19.08,-41.11) node [left] {$ACK/close_con$};
+\draw [black] (49.584,-9.927) arc (-33.52166:-49.26141:93.222);
+\fill [black] (32.7,-29.08) -- (33.64,-28.94) -- (32.98,-28.18);
+\draw (42.34,-21.54) node [right] {$stop/FIN$};
+\draw [black] (28.3,-28.86) -- (9.3,-9.54);
+\fill [black] (9.3,-9.54) -- (9.51,-10.46) -- (10.22,-9.76);
+\draw (19.33,-17.73) node [right] {$FIN-ACK/ACK$};
+\end{tikzpicture}
+\end{center}
+
+\end{document}
+

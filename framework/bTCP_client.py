@@ -1,5 +1,6 @@
 #!/usr/local/bin/python3
 import socket, argparse, random
+from random import randint
 from struct import *
 
 #Handle arguments
@@ -14,12 +15,53 @@ destination_port = 9001
 
 #bTCP header
 header_format = "I"
+header_format2 = "IIIIIII"
 bTCP_header = pack(header_format, randint(0,100))
 bTCP_payload = ""
 udp_payload = bTCP_header
+str_id = randint(0,100)
+syn_number = 2222
+ack_number = 3333
+#Flags: CEUAPRSF
+'''So, 
+SYN is 2
+ACK is 16
+SYN-ACK is 18
+FIN is 1
+FIN-ACK is 17
+'''
+SYN_FLAG = 2
+ACK_FLAG = 16
+SYN_ACK_FLAG = 18
+FIN_FLAG = 1
+FIN_ACK_FLAG = 17
+
+flags = 0
+window = 1
+data_len = 0
+checksum = 1234
+
+#udp_payload = pack(header_format2, str_id, syn_number, ack_number, flags, window, data_len, checksum, bTCP_payload)
 
 #UDP socket which will transport your bTCP packets
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 #send payload
-sock.sendto(udp_payload, (destination_ip, destination_port))
+#sock.sendto(udp_payload, (destination_ip, destination_port))
+
+connected = False
+'''Handshake: '''
+#send syn
+syn_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum)
+sock.sendto(syn_payload, (destination_ip, destination_port))
+#receive syn-ack
+data, addr = sock.recvfrom(1016)
+(str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack(header_format2,data)
+if(flags == SYN_ACK_FLAG):
+    connected = True
+    packet = pack(header_format2, str_id, syn_number, ack_number, ACK_FLAG, window, data_len, checksum)
+    sock.sendto(packet, addr)
+#send data: TODO
+while(connected):
+    pass
+    #disconnect after all data is sent: TODO
