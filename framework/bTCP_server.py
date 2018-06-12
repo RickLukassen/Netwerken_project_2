@@ -21,7 +21,7 @@ FIN_ACK_FLAG = 17
 
 #Define a header format
 header_format = "I"
-header_format2 = "IIIIIII"
+header_format2 = "IIIIIIIs"
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
 sock.bind((server_ip, server_port))
@@ -60,16 +60,19 @@ class State:
     def getState(self):
         return states[self.current]
         
+current_ack = 0
+current_syn = 0
+empty = bytes("", 'utf8')
 state = State()
 while True:
-    print('Waiting for input...')
+    print('Waiting for input...', state.getState())
     data, addr = sock.recvfrom(1016)
-    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack(header_format2,data)
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum, payload) = unpack(header_format2,data)
     #receive SYN-packet
     if(state.getState() == states[0] and flags == SYN_FLAG):
         if(state.changeState('connect1')):
-            print("Received syn, send syn-ack", addr)
-            syn_ack_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_ACK_FLAG, window, data_len, checksum)
+            print("Received syn",syn_number, ack_number, "send syn-ack", addr)
+            syn_ack_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_ACK_FLAG, window, data_len, checksum, empty)
             sock.sendto(syn_ack_payload, addr)
     #receive ACK after SYN-ACK
     if(state.getState() == states[1] and flags == ACK_FLAG):
@@ -78,15 +81,16 @@ while True:
     #stuff to deal with incoming data... TODO
     if(state.getState() == states[2] and flags == 0):
         pass
-    
+    print(flags)
     #receive FIN-packet
     if(state.getState() == states[2] and flags == FIN_FLAG):
         if(state.changeState('disconnect_client')):
-            fin_ack_payload = pack(header_format2, str_id, syn_number, ack_number, FIN_ACK_FLAG , window, data_len, checksum)
+            print("Received FIN, send FIN-ACK")
+            fin_ack_payload = pack(header_format2, str_id, syn_number, ack_number, FIN_ACK_FLAG , window, data_len, checksum, empty)
             sock.sendto(fin_ack_payload, addr)
     #receive ACK after FIN-ACK, close connection
     if(state.getState() == states[4] and flags == ACK_FLAG):
-        if(state.changeState('close'):
+        if(state.changeState('close')):
             print('Connection closed.')          
 
 

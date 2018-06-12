@@ -1,5 +1,6 @@
 #!/usr/local/bin/python3
 import socket, argparse, random
+import sys
 from random import randint
 from struct import *
 
@@ -15,7 +16,7 @@ destination_port = 9001
 
 #bTCP header
 header_format = "I"
-header_format2 = "IIIIIII"
+header_format2 = "IIIIIIIs"
 bTCP_header = pack(header_format, randint(0,100))
 bTCP_payload = ""
 udp_payload = bTCP_header
@@ -45,23 +46,48 @@ checksum = 1234
 
 #UDP socket which will transport your bTCP packets
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#bunchofbytes = bytes(967)
 
+#print(sys.getsizeof(bunchofbytes.nbytes))
 #send payload
 #sock.sendto(udp_payload, (destination_ip, destination_port))
-
+payload = bytes("", 'utf8')
 connected = False
 '''Handshake: '''
 #send syn
-syn_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum)
+print("Send syn", syn_number, ack_number)
+syn_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum, payload)
 sock.sendto(syn_payload, (destination_ip, destination_port))
-#receive syn-ack
+
+
+#receive syn-ack, deal with dropped packets etc: TODO
 data, addr = sock.recvfrom(1016)
-(str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack(header_format2,data)
+(str_id, syn_number, ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+print("Received syn-ack, ", syn_number, ack_number, "send ack")
+
+
 if(flags == SYN_ACK_FLAG):
     connected = True
-    packet = pack(header_format2, str_id, syn_number, ack_number, ACK_FLAG, window, data_len, checksum)
+    packet = pack(header_format2, str_id, syn_number, ack_number, ACK_FLAG, window, data_len, checksum, payload)
     sock.sendto(packet, addr)
+
 #send data: TODO
-while(connected):
-    pass
+if(connected):
+# Read the file contents as bytes.
+    with open(args.input, "rb") as f:
+        bytes = f.read(1000)
+        while(bytes):
+            bytes = f.read(1000)
+    print("File was sent! (Actually TODO)")
+    packet = pack(header_format2, str_id, syn_number, ack_number, FIN_FLAG, window, data_len, checksum, payload)
+    print("Send fin")
+    sock.sendto(packet, addr)
+    data, addr = sock.recvfrom(1016)
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+    if(flags == FIN_ACK_FLAG):
+        print("Fin-ack received, send ack, close connection")
+        packet = pack(header_format2, str_id, syn_number, ack_number, ACK_FLAG, window, data_len, checksum, payload)
+        sock.sendto(packet,addr)
+        connected = False
+    
     #disconnect after all data is sent: TODO
