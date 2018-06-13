@@ -101,7 +101,8 @@ with open(args.output, "wb") as f:
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
                 print("Received SYN(", client_syn_number, ",", client_ack_number, ")" )
-                print("Send SYN_ACK(", server_syn_number, ",", client_syn_number+1, ")")
+                server_syn_number+=1
+                print("Send SYN_ACK(", server_syn_number, ",", client_syn_number, ")")
                 ack_number = client_syn_number+1
                 pl = bytes("\x00", 'utf8')
                 hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, SYN_ACK_FLAG, args.window, len(pl), checksum)
@@ -109,11 +110,14 @@ with open(args.output, "wb") as f:
         #Receive ACK after SYN-ACK, open the connection.
         if(state.getState() == states[1] and flags == ACK_FLAG):
             if(state.changeState('connect2')):
-                print("Received ack, open connection")
+                print("Received ACK, open connection")
         #Ack the incoming data. Write incoming data to the specified file, ack the packet.
         if(state.getState() == states[2] and flags == 0):
             #print("Received data: \n", payload)
             pl = bytes("\x00", 'utf8')
+            server_syn_number +=1
+            print("Send ACK (", str(server_syn_number), "," + str(client_syn_number) + ")")
+            client_syn_number += len(pl)
             hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
             sendPacket(hdr, pl, addr)
             #Save the incoming data and link it to it's sequence number.

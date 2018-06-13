@@ -62,17 +62,17 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
 def sendPacket(header, payload, addr):
-    (str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
+    (str_id, packet_syn_number, packet_ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
     checksum = getChecksum(header, payload)
-    packet = pack("IHHBBHI" + str(data_len) + "s", str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum, payload )
+    packet = pack("IHHBBHI" + str(data_len) + "s", str_id, packet_syn_number, packet_ack_number, SYN_FLAG, window, data_len, checksum, payload )
     print(packet)
     sock.sendto(packet, addr)
 
 def handleData(data):
     payload = data[16:]
     header = data[:16]
-    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
-    return (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum))
+    (str_id, packet_syn_number, packet_ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
+    return (payload, (str_id, packet_syn_number, packet_ack_number, flags, window, data_len, checksum))
 
 
 '''Handshake: '''
@@ -82,7 +82,7 @@ print("Send SYN(", syn_number, ",", ack_number, ")")
 payload = bytes("\x00", 'utf8')
 header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
 sendPacket(header, payload, (destination_ip, destination_port))
-
+syn_number += 1
 
 #receive syn-ack, deal with dropped packets etc: TODO
 data, addr = sock.recvfrom(1016)
@@ -91,15 +91,16 @@ data, addr = sock.recvfrom(1016)
 
 #Send ACK, open connection
 if(flags == SYN_ACK_FLAG):
-    if(server_ack_number == syn_number+1):
-        syn_number+=1
+    if(server_ack_number == syn_number):
         print("Received SYN-ACK (", server_syn_number, ",", server_ack_number, ")")
         print("Send ACK(", syn_number, ",", server_syn_number + 1, ")")
         connected = True
-        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = header_a
+        (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum) = header_a
         pl = bytes("\x00", 'utf8')
-        hdr = pack("IHHBBHI", str_id, syn_number, server_syn_number + 1, ACK_FLAG, window, len(pl), checksum)
+        server_syn_number += 1
+        hdr = pack("IHHBBHI", str_id, syn_number, server_syn_number, ACK_FLAG, window, len(pl), checksum)
         sendPacket(hdr, pl, (destination_ip, destination_port))
+        syn_number += 1
     else:
         print("SYN or SYN-ACK was lost. Resend.")
 
@@ -111,14 +112,16 @@ if(connected):
         while(bytes_):
             if(SENT_NOT_ACK < WINDOW_SIZE):
                 pl = bytes_
+                print("Send data (", syn_number, ",", server_syn_number, ")")
+                server_syn_number += 1
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,(destination_ip, destination_port))
+                syn_number += syn_number + len(pl) % (2 ^ 16)
+                ack_number += 1
                 bytes_ = f.read(1000)
                 SENT_NOT_ACK += 1
                 data, addr = sock.recvfrom(1016)
                 SENT_NOT_ACK -= 1
-                (pl_a, hdr_a) = handleData(data)
-                (_, syn_number, ack_number, flags, _, _, _) = hdr_a
 
     print("File was sent, send fin")
     '''Close connection.'''
