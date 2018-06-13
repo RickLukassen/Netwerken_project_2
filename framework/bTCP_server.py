@@ -72,6 +72,13 @@ def getChecksum(header, payload):
     form = "IHHBBH" +str(len(payload)) + "s"
     return zlib.crc32(pack(form, str_id, syn_number, ack_number, flags, window, data_len, payload), 0)  & 0xffffffff
         
+def sendPacket(header, payload, addr):
+    (str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
+    checksum = getChecksum(header, payload)
+    packet = pack("IHHBBHI" + str(data_len) + "s", str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum, payload )
+    print(packet)
+    sock.sendto(packet, addr)
+
 current_ack = 0
 current_syn = 0
 empty = bytes("", 'utf8')
@@ -81,29 +88,32 @@ with open(args.output, "wb") as f:
         print('Waiting for input...', state.getState())
         data, addr = sock.recvfrom(1016)
         #Take header and payload from the received data.
-        payload = data[16:]
-        header = data[:16]
-        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)  
+        (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum)) = handleData(data)
+        #Receive SYN, send SYN-ACK with window size.
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
-                print("Received syn",syn_number, ack_number, "send syn-ack", addr)
-                syn_ack_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_ACK_FLAG, window, data_len, checksum, empty)
-                sock.sendto(syn_ack_payload, addr)
+                print("Received syn",syn_number, ack_number, "send syn-ack to", addr)
+                pl = bytes("\x00", 'utf8')
+                hdr = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_ACK_FLAG, args.window, len(pl), checksum)
+                sendPacket(hdr, pl, addr)
         #Receive ACK after SYN-ACK, open the connection.
         if(state.getState() == states[1] and flags == ACK_FLAG):
             if(state.changeState('connect2')):
                 print("Received ack, open connection")
-        #Ack the incoming data. Write incoming data to the specified file.
+        #Ack the incoming data. Write incoming data to the specified file, ack the packet.
         if(state.getState() == states[2] and flags == 0):
             print("Received data: \n", payload)
-            ack_packet = pack(header_format, str_id, syn_number, ack_number, ACK_FLAG, window, len(empty), checksum, empty)
+            pl = bytes("\x00", 'utf8')
+            hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
+            sendPacket(hdr, pl, addr)
             f.write(payload)
         #Receive FIN-packet, send FIN-ACK.
         if(state.getState() == states[2] and flags == FIN_FLAG):
             if(state.changeState('disconnect_client')):
                 print("Received FIN, send FIN-ACK")
-                fin_ack_payload = pack(header_format2, str_id, syn_number, ack_number, FIN_ACK_FLAG , window, data_len, checksum, empty)
-                sock.sendto(fin_ack_payload, addr)
+                pl = bytes("\x00", 'utf8')
+                hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_ACK_FLAG, window, len(pl), checksum)
+                sendPacket(hdr,pl,addr)
         #receive ACK after FIN-ACK, close connection
         if(state.getState() == states[4] and flags == ACK_FLAG):
             if(state.changeState('close')):

@@ -56,8 +56,6 @@ def getChecksum(header, payload):
 #UDP socket which will transport your bTCP packets
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-payload = bytes("\x00", 'utf8')
-connected = False
 
 def sendPacket(header, payload, addr):
     (str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
@@ -72,9 +70,12 @@ def handleData(data):
     (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
     return (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum))
 
+
 '''Handshake: '''
+connected = False
 #send syn
 print("Send syn", syn_number, ack_number)
+payload = bytes("\x00", 'utf8')
 header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
 sendPacket(header, payload, (destination_ip, destination_port))
 
@@ -93,7 +94,7 @@ if(flags == SYN_ACK_FLAG):
     hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
     sendPacket(hdr, pl, (destination_ip, destination_port))
 
-#send data: TODO
+'''Send data. '''
 if(connected):
     #Read the file contents as bytes.
     with open(args.input, "rb") as f:
@@ -104,6 +105,7 @@ if(connected):
             sendPacket(hdr,pl,(destination_ip, destination_port))
             bytes_ = f.read(1000)
     print("File was sent, send fin")
+    '''Close connection.'''
     #Send fin
     pl = bytes("\x00", 'utf8')
     hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
