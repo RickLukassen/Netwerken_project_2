@@ -16,6 +16,9 @@ args = parser.parse_args()
 destination_ip = "127.0.0.1"
 destination_port = 9001
 
+WINDOW_SIZE = 5
+buffer_window = []
+
 #bTCP header
 header_format = "I"
 header_format2 = "IHHBBHIs" 
@@ -24,8 +27,8 @@ header_format2 = "IHHBBHIs"
 #udp_payload = bTCP_header
 
 str_id = randint(0,100)
-syn_number = 2222
-ack_number = 3333
+syn_number = 50
+ack_number = 0
 #Flags: CEUAPRSF
 '''So, 
 SYN is 2
@@ -74,7 +77,7 @@ def handleData(data):
 '''Handshake: '''
 connected = False
 #send syn
-print("Send syn", syn_number, ack_number)
+print("Send SYN(", syn_number, ",", ack_number, ")")
 payload = bytes("\x00", 'utf8')
 header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
 sendPacket(header, payload, (destination_ip, destination_port))
@@ -82,17 +85,22 @@ sendPacket(header, payload, (destination_ip, destination_port))
 
 #receive syn-ack, deal with dropped packets etc: TODO
 data, addr = sock.recvfrom(1016)
-(str_id, syn_number, ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+(str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
 (payload_a, header_a) = handleData(data)
-print("Received syn-ack, ", syn_number, ack_number, "send ack")
 
 #Send ACK, open connection
 if(flags == SYN_ACK_FLAG):
-    connected = True
-    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = header_a
-    pl = bytes("\x00", 'utf8')
-    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
-    sendPacket(hdr, pl, (destination_ip, destination_port))
+    if(server_ack_number == syn_number+1):
+        syn_number+=1
+        print("Received SYN-ACK (", server_syn_number, ",", server_ack_number, ")")
+        print("Send ACK(", syn_number, ",", server_syn_number + 1, ")")
+        connected = True
+        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = header_a
+        pl = bytes("\x00", 'utf8')
+        hdr = pack("IHHBBHI", str_id, syn_number, server_syn_number + 1, ACK_FLAG, window, len(pl), checksum)
+        sendPacket(hdr, pl, (destination_ip, destination_port))
+    else:
+        print("SYN or SYN-ACK was lost. Resend.")
 
 '''Send data. '''
 if(connected):
