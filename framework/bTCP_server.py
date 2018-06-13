@@ -79,8 +79,7 @@ def sendPacket(header, payload, addr):
     print(packet)
     sock.sendto(packet, addr)
 
-current_ack = 0
-current_syn = 0
+server_syn_number = 80
 empty = bytes("", 'utf8')
 state = State()
 with open(args.output, "wb") as f:
@@ -88,13 +87,15 @@ with open(args.output, "wb") as f:
         print('Waiting for input...', state.getState())
         data, addr = sock.recvfrom(1016)
         #Take header and payload from the received data.
-        (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum)) = handleData(data)
+        (payload, (str_id, client_syn_number, client_ack_number, flags, window, data_len, checksum)) = handleData(data)
         #Receive SYN, send SYN-ACK with window size.
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
-                print("Received syn",syn_number, ack_number, "send syn-ack to", addr)
+                print("Received SYN(", client_syn_number, ",", client_ack_number, ")" )
+                print("Send SYN_ACK(", server_syn_number, ",", client_syn_number+1, ")")
+                ack_number = client_syn_number+1
                 pl = bytes("\x00", 'utf8')
-                hdr = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_ACK_FLAG, args.window, len(pl), checksum)
+                hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, SYN_ACK_FLAG, args.window, len(pl), checksum)
                 sendPacket(hdr, pl, addr)
         #Receive ACK after SYN-ACK, open the connection.
         if(state.getState() == states[1] and flags == ACK_FLAG):
@@ -104,7 +105,7 @@ with open(args.output, "wb") as f:
         if(state.getState() == states[2] and flags == 0):
             print("Received data: \n", payload)
             pl = bytes("\x00", 'utf8')
-            hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
+            hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
             sendPacket(hdr, pl, addr)
             f.write(payload)
         #Receive FIN-packet, send FIN-ACK.
@@ -112,7 +113,7 @@ with open(args.output, "wb") as f:
             if(state.changeState('disconnect_client')):
                 print("Received FIN, send FIN-ACK")
                 pl = bytes("\x00", 'utf8')
-                hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_ACK_FLAG, window, len(pl), checksum)
+                hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, FIN_ACK_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,addr)
         #receive ACK after FIN-ACK, close connection
         if(state.getState() == states[4] and flags == ACK_FLAG):
