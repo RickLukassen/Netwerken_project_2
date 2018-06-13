@@ -2,7 +2,7 @@
 import socket, argparse, random
 import sys
 import zlib
-from Tcp_packet import Tcp_packet
+#from Tcp_packet import Tcp_packet
 from random import randint
 from struct import *
 
@@ -16,7 +16,8 @@ args = parser.parse_args()
 destination_ip = "127.0.0.1"
 destination_port = 9001
 
-WINDOW_SIZE = 5
+WINDOW_SIZE = 5 #TEMPORARY WINDOW SIZE
+SENT_NOT_ACK = 0
 buffer_window = []
 
 #bTCP header
@@ -108,11 +109,14 @@ if(connected):
     with open(args.input, "rb") as f:
         bytes_ = f.read(1000)
         while(bytes_):
-            pl = bytes_
-            hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
-            sendPacket(hdr,pl,(destination_ip, destination_port))
-            bytes_ = f.read(1000)
-            data, addr = sock.recvfrom(1016)
+            if(SENT_NOT_ACK < WINDOW_SIZE):
+                pl = bytes_
+                hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
+                sendPacket(hdr,pl,(destination_ip, destination_port))
+                bytes_ = f.read(1000)
+                SENT_NOT_ACK += 1
+                data, addr = sock.recvfrom(1016)
+                SENT_NOT_ACK -= 1
     print("File was sent, send fin")
     '''Close connection.'''
     #Send fin
