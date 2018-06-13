@@ -1,5 +1,6 @@
 #!/usr/local/bin/python3
 import socket, argparse
+import zlib
 from struct import *
 
 #Handle arguments
@@ -61,14 +62,15 @@ class State:
         return states[self.current]
 
 def handleData(data):
-        payload = data[16:]
-        header = data[:16]
-        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
-        return (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum))
+    payload = data[16:]
+    header = data[:16]
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
+    return (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum))
 
-def sendPacket(header, payload, addr):
-    pass
-    
+def getChecksum(header, payload):
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)    
+    form = "IHHBBH" +str(len(payload)) + "s"
+    return zlib.crc32(pack(form, str_id, syn_number, ack_number, flags, window, data_len, payload), 0)  & 0xffffffff
         
 current_ack = 0
 current_syn = 0
@@ -81,7 +83,7 @@ with open(args.output, "wb") as f:
         #Take header and payload from the received data.
         payload = data[16:]
         header = data[:16]
-        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)        
+        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)  
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
                 print("Received syn",syn_number, ack_number, "send syn-ack", addr)

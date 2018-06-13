@@ -1,6 +1,7 @@
 #!/usr/local/bin/python3
 import socket, argparse, random
 import sys
+import zlib
 from Tcp_packet import Tcp_packet
 from random import randint
 from struct import *
@@ -18,9 +19,10 @@ destination_port = 9001
 #bTCP header
 header_format = "I"
 header_format2 = "IHHBBHIs" 
-bTCP_header = pack(header_format, randint(0,100))
-bTCP_payload = ""
-udp_payload = bTCP_header
+#bTCP_header = pack(header_format, randint(0,100))
+#bTCP_payload = ""
+#udp_payload = bTCP_header
+
 str_id = randint(0,100)
 syn_number = 2222
 ack_number = 3333
@@ -44,60 +46,78 @@ window = 1
 data_len = 1000
 checksum = 1234
 
+def getChecksum(header, payload):
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)    
+    form = "IHHBBH" +str(len(payload)) + "s"
+    return zlib.crc32(pack(form, str_id, syn_number, ack_number, flags, window, data_len, payload), 0)  & 0xffffffff
+
 #udp_payload = pack(header_format2, str_id, syn_number, ack_number, flags, window, data_len, checksum, bTCP_payload)
 
 #UDP socket which will transport your bTCP packets
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-#send payload
-#sock.sendto(udp_payload, (destination_ip, destination_port))
-payload = bytes("", 'utf8')
+payload = bytes("\x00", 'utf8')
 connected = False
+
+def sendPacket(header, payload, addr):
+    (str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
+    checksum = getChecksum(header, payload)
+    packet = pack("IHHBBHI" + str(data_len) + "s", str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum, payload )
+    print(packet)
+    sock.sendto(packet, addr)
+
+def handleData(data):
+    payload = data[16:]
+    header = data[:16]
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
+    return (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum))
+
 '''Handshake: '''
 #send syn
 print("Send syn", syn_number, ack_number)
-syn_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum, payload)
-#tcp_packet = Tcp_packet.Tcp_packet(str_id, syn_number, ack_number, SYN_FLAG, window, data_len, payload)
-sock.sendto(syn_payload, (destination_ip, destination_port))
-#sock.sendto(tcp_packet.to_bytes(), (destination_ip, destination_port))
-#print(tcp_packet.to_bytes())
-#print(syn_payload)
+header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
+sendPacket(header, payload, (destination_ip, destination_port))
+
 
 #receive syn-ack, deal with dropped packets etc: TODO
 data, addr = sock.recvfrom(1016)
 (str_id, syn_number, ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+(payload_a, header_a) = handleData(data)
 print("Received syn-ack, ", syn_number, ack_number, "send ack")
 
-
+#Send ACK, open connection
 if(flags == SYN_ACK_FLAG):
     connected = True
-    packet = pack(header_format2, str_id, syn_number, ack_number, ACK_FLAG, window, data_len, checksum, payload)
-    sock.sendto(packet, addr)
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = header_a
+    pl = bytes("\x00", 'utf8')
+    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
+    sendPacket(hdr, pl, (destination_ip, destination_port))
 
 #send data: TODO
 if(connected):
-# Read the file contents as bytes.
+    #Read the file contents as bytes.
     with open(args.input, "rb") as f:
-        bytes = f.read(1000)
-        while(bytes):
-            header_format2 = "IHHBBHI" + str(len(bytes)) + "s"
-            #test_packet = Tcp_packet(str_id, syn_number, ack_number, NO_FLAG, window, data_len, bytes)
-            packet = pack(header_format2, str_id, syn_number, ack_number, NO_FLAG, window, data_len, checksum, bytes)
-            sock.sendto(packet,addr)
-            print(packet)
-            bytes = f.read(1000)
-    print("File was sent!")
-    packet = pack(header_format2, str_id, syn_number, ack_number, FIN_FLAG, window, data_len, checksum, payload)
-    print("Send fin")
-    sock.sendto(packet, addr)
-    print(data)
+        bytes_ = f.read(1000)
+        while(bytes_):
+            pl = bytes_
+            hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
+            sendPacket(hdr,pl,(destination_ip, destination_port))
+            bytes_ = f.read(1000)
+    print("File was sent, send fin")
+    #Send fin
+    pl = bytes("\x00", 'utf8')
+    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
+    sendPacket(hdr,pl,(destination_ip, destination_port))
+    #Receive FIN-ACK
     data, addr = sock.recvfrom(1016)
-    header_format3 = "IHHBBHIs"
-    (str_id, syn_number, ack_number, flags, window, data_len, checksum, pl) = unpack(header_format3,data)
+    (pl_a, hdr_a) = handleData(data)
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
+    #Send ACK, close connection
     if(flags == FIN_ACK_FLAG):
         print("Fin-ack received, send ack, close connection")
-        packet = pack(header_format2, str_id, syn_number, ack_number, ACK_FLAG, window, data_len, checksum, payload)
-        sock.sendto(packet,addr)
+        pl = bytes("\x00", 'utf8')        
+        hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), 0)
+        sendPacket(hdr,pl,(destination_ip, destination_port))
         connected = False
     
-    #disconnect after all data is sent: TODO
+    #disconnect after all data is sent
