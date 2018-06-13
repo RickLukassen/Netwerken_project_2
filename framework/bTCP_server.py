@@ -117,7 +117,7 @@ with open(args.output, "wb") as f:
             hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
             sendPacket(hdr, pl, addr)
             #Save the incoming data and link it to it's sequence number.
-            incoming_data[syn_number] = payload
+            incoming_data[client_syn_number] = payload
             f.write(payload)
         #Receive FIN-packet, send FIN-ACK.
         if(state.getState() == states[2] and flags == FIN_FLAG):
