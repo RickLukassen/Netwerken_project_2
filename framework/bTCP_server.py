@@ -79,18 +79,14 @@ def sendPacket(header, payload, addr):
     print(packet)
     sock.sendto(packet, addr)
 
-<<<<<<< HEAD
 def checkChecksum(data, checksum):
     (p, (str_id, syn_number, ack_number, flags, y, x, checksum)) = handleData(data)
     c = pack("IHHBBHI",str_id, syn_number, ack_number, flags, y, x, checksum)
     return getChecksum(c,p) == checksum 
 
 incoming_data = {}
-current_ack = 0
-current_syn = 0
-=======
+
 server_syn_number = 80
->>>>>>> 2736afeaf11ab2400f63bed508bd514e91c0a79c
 empty = bytes("", 'utf8')
 state = State()
 with open(args.output, "wb") as f:
