@@ -86,7 +86,6 @@ def checkChecksum(data, checksum):
 
 incoming_data = {}
 
-server_syn_number = 80
 empty = bytes("", 'utf8')
 state = State()
 with open(args.output, "wb") as f:
@@ -100,10 +99,10 @@ with open(args.output, "wb") as f:
         #Receive SYN, send SYN-ACK with window size.
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
+                ack_number = client_syn_number + 1
+                server_syn_number = client_ack_number
                 print("Received SYN(", client_syn_number, ",", client_ack_number, ")" )
-                server_syn_number+=1
-                print("Send SYN_ACK(", server_syn_number, ",", client_syn_number, ")")
-                ack_number = client_syn_number+1
+                print("Send SYN_ACK(", server_syn_number, ",", ack_number, ")")
                 pl = bytes("\x00", 'utf8')
                 hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, SYN_ACK_FLAG, args.window, len(pl), checksum)
                 sendPacket(hdr, pl, addr)
@@ -116,8 +115,8 @@ with open(args.output, "wb") as f:
             #print("Received data: \n", payload)
             pl = bytes("\x00", 'utf8')
             server_syn_number +=1
-            print("Send ACK (", str(server_syn_number), "," + str(client_syn_number) + ")")
-            client_syn_number += len(pl)
+            ack_number = (ack_number + len(payload)) % 65536
+            print("Send ACK (", str(server_syn_number), "," + str(ack_number) + ")")
             hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
             sendPacket(hdr, pl, addr)
             #Save the incoming data and link it to it's sequence number.

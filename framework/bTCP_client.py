@@ -18,7 +18,7 @@ destination_port = 9001
 
 WINDOW_SIZE = 5 #TEMPORARY WINDOW SIZE
 SENT_NOT_ACK = 0
-buffer_window = []
+buffer = dict()
 
 #bTCP header
 header_format = "I"
@@ -93,12 +93,13 @@ data, addr = sock.recvfrom(1016)
 if(flags == SYN_ACK_FLAG):
     if(server_ack_number == syn_number):
         print("Received SYN-ACK (", server_syn_number, ",", server_ack_number, ")")
-        print("Send ACK(", syn_number, ",", server_syn_number + 1, ")")
+        server_syn_number += 1
+        ack_number = server_syn_number
+        print("Send ACK(", syn_number, ",", ack_number, ")")
         connected = True
         (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum) = header_a
         pl = bytes("\x00", 'utf8')
-        server_syn_number += 1
-        hdr = pack("IHHBBHI", str_id, syn_number, server_syn_number, ACK_FLAG, window, len(pl), checksum)
+        hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
         sendPacket(hdr, pl, (destination_ip, destination_port))
         syn_number += 1
     else:
@@ -112,11 +113,11 @@ if(connected):
         while(bytes_):
             if(SENT_NOT_ACK < WINDOW_SIZE):
                 pl = bytes_
-                print("Send data (", syn_number, ",", server_syn_number, ")")
+                print("Send data (", syn_number, ",", ack_number, ")")
                 server_syn_number += 1
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,(destination_ip, destination_port))
-                syn_number += syn_number + len(pl) % (2 ^ 16)
+                syn_number = (syn_number + len(pl)) % 65536
                 ack_number += 1
                 bytes_ = f.read(1000)
                 SENT_NOT_ACK += 1
