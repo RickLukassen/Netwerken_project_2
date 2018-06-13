@@ -20,7 +20,7 @@ FIN_FLAG = 1
 FIN_ACK_FLAG = 17
 
 #Define a header format
-header_format = "I"
+header_format = "IHHBBHIs"
 header_format2 = "IHHBBHIs"
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
@@ -59,6 +59,16 @@ class State:
 
     def getState(self):
         return states[self.current]
+
+def handleData(data):
+        payload = data[16:]
+        header = data[:16]
+        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
+        return (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum))
+
+def sendPacket(header, payload, addr):
+    pass
+    
         
 current_ack = 0
 current_syn = 0
@@ -68,28 +78,25 @@ with open(args.output, "wb") as f:
     while True:
         print('Waiting for input...', state.getState())
         data, addr = sock.recvfrom(1016)
-        print(data[16:])
-        pl = data[16:]
-        if(len(pl)> 1):
-            header = data[:16]
-            (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)
-            payload = pl
-        else:
-            (str_id, syn_number, ack_number, flags, window, data_len, checksum, payload) = unpack(header_format2,data)
-        #receive SYN-packet
+        #Take header and payload from the received data.
+        payload = data[16:]
+        header = data[:16]
+        (str_id, syn_number, ack_number, flags, window, data_len, checksum) = unpack("IHHBBHI", header)        
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
                 print("Received syn",syn_number, ack_number, "send syn-ack", addr)
                 syn_ack_payload = pack(header_format2, str_id, syn_number, ack_number, SYN_ACK_FLAG, window, data_len, checksum, empty)
                 sock.sendto(syn_ack_payload, addr)
-        #receive ACK after SYN-ACK
+        #Receive ACK after SYN-ACK, open the connection.
         if(state.getState() == states[1] and flags == ACK_FLAG):
             if(state.changeState('connect2')):
                 print("Received ack, open connection")
-        #stuff to deal with incoming data... TODO
+        #Ack the incoming data. Write incoming data to the specified file.
         if(state.getState() == states[2] and flags == 0):
+            print("Received data: \n", payload)
+            ack_packet = pack(header_format, str_id, syn_number, ack_number, ACK_FLAG, window, len(empty), checksum, empty)
             f.write(payload)
-        #receive FIN-packet
+        #Receive FIN-packet, send FIN-ACK.
         if(state.getState() == states[2] and flags == FIN_FLAG):
             if(state.changeState('disconnect_client')):
                 print("Received FIN, send FIN-ACK")
