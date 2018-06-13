@@ -73,12 +73,18 @@ def getChecksum(header, payload):
     return zlib.crc32(pack(form, str_id, syn_number, ack_number, flags, window, data_len, payload), 0)  & 0xffffffff
         
 def sendPacket(header, payload, addr):
-    (str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
+    (str_id, syn_number, ack_number, FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
     checksum = getChecksum(header, payload)
-    packet = pack("IHHBBHI" + str(data_len) + "s", str_id, syn_number, ack_number, SYN_FLAG, window, data_len, checksum, payload )
+    packet = pack("IHHBBHI" + str(data_len) + "s", str_id, syn_number, ack_number, FLAG, window, data_len, checksum, payload )
     print(packet)
     sock.sendto(packet, addr)
 
+def checkChecksum(data, checksum):
+    (p, (str_id, syn_number, ack_number, flags, y, x, checksum)) = handleData(data)
+    c = pack("IHHBBHI",str_id, syn_number, ack_number, flags, y, x, checksum)
+    return getChecksum(c,p) == checksum 
+
+incoming_data = {}
 current_ack = 0
 current_syn = 0
 empty = bytes("", 'utf8')
@@ -89,6 +95,8 @@ with open(args.output, "wb") as f:
         data, addr = sock.recvfrom(1016)
         #Take header and payload from the received data.
         (payload, (str_id, syn_number, ack_number, flags, window, data_len, checksum)) = handleData(data)
+        #Check if message is corrupted by checking the checksum, if it is corrupted it is treated as a dropped packet.
+        checkChecksum(data, checksum)
         #Receive SYN, send SYN-ACK with window size.
         if(state.getState() == states[0] and flags == SYN_FLAG):
             if(state.changeState('connect1')):
@@ -102,10 +110,12 @@ with open(args.output, "wb") as f:
                 print("Received ack, open connection")
         #Ack the incoming data. Write incoming data to the specified file, ack the packet.
         if(state.getState() == states[2] and flags == 0):
-            print("Received data: \n", payload)
+            #print("Received data: \n", payload)
             pl = bytes("\x00", 'utf8')
             hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
             sendPacket(hdr, pl, addr)
+            #Save the incoming data and link it to it's sequence number.
+            incoming_data[syn_number] = payload
             f.write(payload)
         #Receive FIN-packet, send FIN-ACK.
         if(state.getState() == states[2] and flags == FIN_FLAG):
@@ -114,9 +124,11 @@ with open(args.output, "wb") as f:
                 pl = bytes("\x00", 'utf8')
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_ACK_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,addr)
-        #receive ACK after FIN-ACK, close connection
+        #receive ACK after FIN-ACK, close connection, write to file?
         if(state.getState() == states[4] and flags == ACK_FLAG):
             if(state.changeState('close')):
-                print('Connection closed.')          
-
+                print('Connection closed.')
+                #All data is received (if everything works) so write it to file.       
+                for t in incoming_data:
+                    print(t, incoming_data[t])
 
