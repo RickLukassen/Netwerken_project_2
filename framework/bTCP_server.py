@@ -5,7 +5,7 @@ from struct import *
 
 #Handle arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=100)
+parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=3)
 parser.add_argument("-t", "--timeout", help="Define bTCP timeout in milliseconds", type=int, default=100)
 parser.add_argument("-o","--output", help="Where to store file", default="tmp2.file")
 args = parser.parse_args()
@@ -88,6 +88,7 @@ incoming_data = {}
 
 empty = bytes("", 'utf8')
 state = State()
+
 with open(args.output, "wb") as f:
     while True:
         print('Waiting for input...', state.getState())

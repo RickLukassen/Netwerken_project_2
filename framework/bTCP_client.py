@@ -5,10 +5,11 @@ import zlib
 #from Tcp_packet import Tcp_packet
 from random import randint
 from struct import *
+import _thread, time
 
 #Handle arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=100)
+parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=3)
 parser.add_argument("-t", "--timeout", help="Define bTCP timeout in milliseconds", type=int, default=100)
 parser.add_argument("-i","--input", help="File to send", default="tmp.file")
 args = parser.parse_args()
@@ -16,9 +17,8 @@ args = parser.parse_args()
 destination_ip = "127.0.0.1"
 destination_port = 9001
 
-WINDOW_SIZE = 5 #TEMPORARY WINDOW SIZE
-SENT_NOT_ACK = 0
-buffer = dict()
+buffer = []
+baseSentIndex = 0
 
 #bTCP header
 header_format = "I"
@@ -87,6 +87,7 @@ syn_number += 1
 #receive syn-ack, deal with dropped packets etc: TODO
 data, addr = sock.recvfrom(1016)
 (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+WINDOW_SIZE = window
 (payload_a, header_a) = handleData(data)
 
 #Send ACK, open connection
@@ -106,41 +107,55 @@ if(flags == SYN_ACK_FLAG):
         print("SYN or SYN-ACK was lost. Resend.")
 
 '''Send data. '''
-if(connected):
-    #Read the file contents as bytes.
-    with open(args.input, "rb") as f:
-        bytes_ = f.read(1000)
-        while(bytes_):
-            if(SENT_NOT_ACK < WINDOW_SIZE):
+def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, window, checksum):
+    if(connected):
+        #Read the file contents as bytes.
+        with open(args.input, "rb") as f:
+            bytes_ = f.read(1000)
+            while(bytes_):
                 pl = bytes_
                 print("Send data (", syn_number, ",", ack_number, ")")
                 server_syn_number += 1
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,(destination_ip, destination_port))
+                buffer.append([syn_number,"SENT"])
+                for i in buffer:
+                    print (i)
                 syn_number = (syn_number + len(pl)) % 65536
                 ack_number += 1
                 bytes_ = f.read(1000)
-                SENT_NOT_ACK += 1
-                data, addr = sock.recvfrom(1016)
-                SENT_NOT_ACK -= 1
+    print("File was sent, send FIN(", syn_number ,",", ack_number , ")")
 
-    print("File was sent, send fin")
-    '''Close connection.'''
-    #Send fin
+def getStream():
+    while(True): #this shouldn't go on forever.
+        data, addr = sock.recvfrom(1016)
+        (payload_ack, header_ack) = handleData(data)
+        print("GOT ACK! ", header_ack)
+
+try:
+    _thread.start_new_thread(sendStream, (connected,server_syn_number,syn_number,ack_number,str_id,window,checksum) )
+    _thread.start_new_thread(getStream, ())
+except:
+    print("Error: unable to start thread")
+
+time.sleep(5)
+
+'''Close connection.'''
+#Send fin
+pl = bytes("\x00", 'utf8')
+hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
+sendPacket(hdr,pl,(destination_ip, destination_port))
+#Receive FIN-ACK
+data, addr = sock.recvfrom(1016)
+(pl_a, hdr_a) = handleData(data)
+(str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
+print(flags)
+#Send ACK, close connection
+if(flags == FIN_ACK_FLAG):
+    print("Fin-ack received, send ack, close connection")
     pl = bytes("\x00", 'utf8')
-    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
+    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), 0)
     sendPacket(hdr,pl,(destination_ip, destination_port))
-    #Receive FIN-ACK
-    data, addr = sock.recvfrom(1016)
-    (pl_a, hdr_a) = handleData(data)
-    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
-    print(flags)
-    #Send ACK, close connection
-    if(flags == FIN_ACK_FLAG):
-        print("Fin-ack received, send ack, close connection")
-        pl = bytes("\x00", 'utf8')        
-        hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), 0)
-        sendPacket(hdr,pl,(destination_ip, destination_port))
-        connected = False
-    
-    #disconnect after all data is sent
+    connected = False
+
+#disconnect after all data is sent
