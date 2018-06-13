@@ -117,6 +117,9 @@ if(connected):
                 SENT_NOT_ACK += 1
                 data, addr = sock.recvfrom(1016)
                 SENT_NOT_ACK -= 1
+                (pl_a, hdr_a) = handleData(data)
+                (_, syn_number, ack_number, flags, _, _, _) = hdr_a
+
     print("File was sent, send fin")
     '''Close connection.'''
     #Send fin
@@ -127,6 +130,7 @@ if(connected):
     data, addr = sock.recvfrom(1016)
     (pl_a, hdr_a) = handleData(data)
     (str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
+    print(flags)
     #Send ACK, close connection
     if(flags == FIN_ACK_FLAG):
         print("Fin-ack received, send ack, close connection")
