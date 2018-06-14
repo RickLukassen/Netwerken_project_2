@@ -3,6 +3,11 @@ import socket, argparse
 import zlib
 from struct import *
 
+''' 
+Rick Lukassen, s4263812
+Bas Steeg, s4259181
+'''
+
 #Handle arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("-w", "--window", help="Define bTCP window size", type=int, default=3)
@@ -20,17 +25,14 @@ SYN_ACK_FLAG = 18
 FIN_FLAG = 1
 FIN_ACK_FLAG = 17
 
-#Define a header format
-header_format = "IHHBBHIs"
-header_format2 = "IHHBBHIs"
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
 sock.bind((server_ip, server_port))
 
+'''States and actions to emulate the state machine.'''
 actions = ['connect1', 'connect2', 'disconnect_server', 'disconnect_client', 'close']
 states = ['waiting', 'handshake', 'connected', 'closing_server', 'closing_client']
         
-
+'''A simple class to keep track of our current state.'''
 class State:
     '''Initializes the current state: waiting.'''
     def __init__(self):
@@ -86,7 +88,7 @@ def checkChecksum(data, checksum):
 
 incoming_data = {}
 
-empty = bytes("", 'utf8')
+empty = bytes("\x00", 'utf8')
 state = State()
 
 while True:
