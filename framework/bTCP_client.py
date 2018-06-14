@@ -79,7 +79,7 @@ def handleData(data):
     return (payload, (str_id, packet_syn_number, packet_ack_number, flags, window, data_len, checksum))
 
 
-'''Handshake: '''
+#Handshake: 
 connected = False
 #send syn
 print("Send SYN(", syn_number, ",", ack_number, ")")
@@ -109,6 +109,38 @@ if(flags == SYN_ACK_FLAG):
         syn_number += 1
     else:
         print("SYN or SYN-ACK was lost. Resend.")
+'''
+def handShake(str_id, syn_number, ack_number,checksum, addr):
+    connected = False
+    #send syn
+    print("Send SYN(", syn_number, ",", ack_number, ")")
+    payload = bytes("\x00", 'utf8')
+    header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
+    sendPacket(header, payload, addr)
+    syn_number += 1
+    #receive syn-ack, deal with dropped packets etc: TODO
+    data, addr = sock.recvfrom(1016)
+    (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+    WINDOW_SIZE = window
+    (payload_a, header_a) = handleData(data)
+    #Send ACK, open connection
+    if(flags == SYN_ACK_FLAG):
+        if(server_ack_number == syn_number):
+            print("Received SYN-ACK (", server_syn_number, ",", server_ack_number, ")")
+            server_syn_number += 1
+            ack_number = server_syn_number
+            print("Send ACK(", syn_number, ",", ack_number, ")")
+            connected = True
+            (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum) = header_a
+            pl = bytes("\x00", 'utf8')
+            hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
+            sendPacket(hdr, pl, addr)
+            syn_number += 1
+        else:
+            print("SYN or SYN-ACK was lost. Resend.")
+            return False
+    return True
+'''
 
 '''Send data. '''
 def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, window, checksum):
@@ -123,7 +155,7 @@ def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, win
                 server_syn_number += 1
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,(destination_ip, destination_port))
-                buffer[syn_number + 1] = (hdr,pl)
+                buffer[syn_number + len(pl)] = (hdr,pl)
                 syn_number = (syn_number + len(pl)) % 65536
                 ack_number += 1
                 bytes_ = f.read(1000)
@@ -140,46 +172,58 @@ def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, win
         time.sleep(args.timeout/1000)
     send_fin = True
     print("File was sent, send FIN(", syn_number ,",", ack_number , ")")
-    return True
+    pl = bytes("\x00", 'utf8')
+    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
+    sendPacket(hdr,pl,(destination_ip, destination_port))
 
 def getStream():
     global rec_done
     time.sleep(0.1)
-    while(not(send_fin)): #this shouldn't go on forever.
+    while(not(send_fin) or connected): #this shouldn't go on forever.
         data, addr = sock.recvfrom(1016)
         (payload_ack, header_ack) = handleData(data)
         (_, ss, sa, flags, _, _, checksum) = header_ack
         if(flags == ACK_FLAG):            
             print("GOT ACK! ", sa)
             q.put(sa)
+        print(flags, send_fin, connected)
         if(flags == FIN_ACK_FLAG):
-            pass
-            #TODO fix dit, dit pakket wordt bij regel 187 eigenlijk gehandeld.
+            print("FINACK?")
+            endConnection(data,addr)
     rec_done = True
     return True
+
+def endConnection(data, addr):
+    (pl_a, hdr_a) = handleData(data)
+    (str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
+    #Send ACK, close connection
+    print("Fin-ack received, send ack, close connection")
+    pl = bytes("\x00", 'utf8')
+    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), 0)
+    sendPacket(hdr,pl,(destination_ip, destination_port))
+    connected = False
+
+#handShake(str_id, syn_number, ack_number, checksum, (destination_ip, destination_port))
 
 q = queue.Queue()
 sent_all = False
 try:
     a = _thread.start_new_thread(sendStream, (connected,server_syn_number,syn_number,ack_number,str_id,window,checksum) )
     b = _thread.start_new_thread(getStream, ())
-    a.join()
-    b.join()
 except:
     print("Error: unable to start thread")
 
 
 '''Close connection.'''
-while(not(send_fin) and not(rec_done)):
+while(not(send_fin) and not(rec_done) and connected):
     time.sleep(0.1)
 
-print("BBBBBBBBB")
+'''
 #Send fin
 pl = bytes("\x00", 'utf8')
 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
 sendPacket(hdr,pl,(destination_ip, destination_port))
 #Receive FIN-ACK
-
 data, addr = sock.recvfrom(1016)
 (pl_a, hdr_a) = handleData(data)
 (str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
@@ -190,5 +234,5 @@ if(flags == FIN_ACK_FLAG):
     hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), 0)
     sendPacket(hdr,pl,(destination_ip, destination_port))
     connected = False
-
+'''
 #disconnect after all data is sent

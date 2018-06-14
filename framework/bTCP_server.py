@@ -116,7 +116,7 @@ with open(args.output, "wb") as f:
             #print("Received data: \n", payload)
             pl = bytes("\x00", 'utf8')
             server_syn_number +=1
-            ack_number = (client_syn_number + len(pl)) % 65536
+            ack_number = (client_syn_number + len(payload)) % 65536
             print("Send ACK (", str(server_syn_number), "," + str(ack_number) + ")", str(client_syn_number))
             hdr = pack("IHHBBHI", str_id, server_syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
             sendPacket(hdr, pl, addr)
