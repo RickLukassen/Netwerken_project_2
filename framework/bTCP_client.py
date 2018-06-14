@@ -2,6 +2,7 @@
 import socket, argparse, random
 import sys
 import zlib
+import queue
 #from Tcp_packet import Tcp_packet
 from random import randint
 from struct import *
@@ -17,12 +18,15 @@ args = parser.parse_args()
 destination_ip = "127.0.0.1"
 destination_port = 9001
 
-buffer = []
+buffer = {}
 baseSentIndex = 0
 
 #bTCP header
 header_format = "I"
 header_format2 = "IHHBBHIs" 
+fin_sent = False
+send_fin = False
+rec_done = False
 #bTCP_header = pack(header_format, randint(0,100))
 #bTCP_payload = ""
 #udp_payload = bTCP_header
@@ -65,7 +69,7 @@ def sendPacket(header, payload, addr):
     (str_id, packet_syn_number, packet_ack_number, SYN_FLAG, window, data_len, checksum) = unpack("IHHBBHI", header)
     checksum = getChecksum(header, payload)
     packet = pack("IHHBBHI" + str(data_len) + "s", str_id, packet_syn_number, packet_ack_number, SYN_FLAG, window, data_len, checksum, payload )
-    print(packet)
+    #print(packet)
     sock.sendto(packet, addr)
 
 def handleData(data):
@@ -108,6 +112,7 @@ if(flags == SYN_ACK_FLAG):
 
 '''Send data. '''
 def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, window, checksum):
+    global send_fin, sent_all
     if(connected):
         #Read the file contents as bytes.
         with open(args.input, "rb") as f:
@@ -118,38 +123,66 @@ def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, win
                 server_syn_number += 1
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,(destination_ip, destination_port))
-                buffer.append([syn_number,"SENT"])
-                for i in buffer:
-                    print (i)
+                buffer[syn_number + 1] = (hdr,pl)
                 syn_number = (syn_number + len(pl)) % 65536
                 ack_number += 1
                 bytes_ = f.read(1000)
+    sent_all = True
+    time.sleep(2*args.timeout/1000)
+    while(buffer):
+        while(q.qsize() > 0):
+            received_ack = q.get()
+            if(received_ack in buffer):
+                del buffer[received_ack]
+        for b in buffer:
+            (hdr, pl) = buffer[b]
+            sendPacket(hdr,pl,(destination_ip, destination_port))
+        time.sleep(args.timeout/1000)
+    send_fin = True
     print("File was sent, send FIN(", syn_number ,",", ack_number , ")")
+    return True
 
 def getStream():
-    while(True): #this shouldn't go on forever.
+    global rec_done
+    time.sleep(0.1)
+    while(not(send_fin)): #this shouldn't go on forever.
         data, addr = sock.recvfrom(1016)
         (payload_ack, header_ack) = handleData(data)
-        print("GOT ACK! ", header_ack)
+        (_, ss, sa, flags, _, _, checksum) = header_ack
+        if(flags == ACK_FLAG):            
+            print("GOT ACK! ", sa)
+            q.put(sa)
+        if(flags == FIN_ACK_FLAG):
+            pass
+            #TODO fix dit, dit pakket wordt bij regel 187 eigenlijk gehandeld.
+    rec_done = True
+    return True
 
+q = queue.Queue()
+sent_all = False
 try:
-    _thread.start_new_thread(sendStream, (connected,server_syn_number,syn_number,ack_number,str_id,window,checksum) )
-    _thread.start_new_thread(getStream, ())
+    a = _thread.start_new_thread(sendStream, (connected,server_syn_number,syn_number,ack_number,str_id,window,checksum) )
+    b = _thread.start_new_thread(getStream, ())
+    a.join()
+    b.join()
 except:
     print("Error: unable to start thread")
 
-time.sleep(5)
 
 '''Close connection.'''
+while(not(send_fin) and not(rec_done)):
+    time.sleep(0.1)
+
+print("BBBBBBBBB")
 #Send fin
 pl = bytes("\x00", 'utf8')
 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
 sendPacket(hdr,pl,(destination_ip, destination_port))
 #Receive FIN-ACK
+
 data, addr = sock.recvfrom(1016)
 (pl_a, hdr_a) = handleData(data)
 (str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
-print(flags)
 #Send ACK, close connection
 if(flags == FIN_ACK_FLAG):
     print("Fin-ack received, send ack, close connection")
