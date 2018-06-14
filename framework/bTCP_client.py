@@ -104,6 +104,7 @@ if(flags == SYN_ACK_FLAG):
         connected = True
         (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum) = header_a
         pl = bytes("\x00", 'utf8')
+        WINDOW = window
         hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
         sendPacket(hdr, pl, (destination_ip, destination_port))
         syn_number += 1
@@ -142,9 +143,19 @@ def handShake(str_id, syn_number, ack_number,checksum, addr):
     return True
 '''
 
+def retransmit():
+    if(q.qsize() > 0):
+        received_ack = q.get()
+        if(received_ack in buffer):
+            del buffer[received_ack]
+    for b in buffer:
+        ((hdr, pl),_) = buffer[b]
+        sendPacket(hdr,pl,(destination_ip, destination_port))
+
 '''Send data. '''
 def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, window, checksum):
     global send_fin, sent_all
+    i = 1
     if(connected):
         #Read the file contents as bytes.
         with open(args.input, "rb") as f:
@@ -155,7 +166,23 @@ def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, win
                 server_syn_number += 1
                 hdr = pack("IHHBBHI", str_id, syn_number, ack_number, NO_FLAG, window, len(pl), checksum)
                 sendPacket(hdr,pl,(destination_ip, destination_port))
-                buffer[syn_number + len(pl)] = (hdr,pl)
+                buffer[syn_number + len(pl)] = ((hdr,pl) , i)
+                i += 1
+                #here it would be necessary to wait and retransmit before continue.
+                lowest = buffer[sorted(buffer)[0]][1]
+                highest = buffer[sorted(buffer)[len(buffer)-1]][1]
+                #print(lowest, highest, WINDOW, (highest - WINDOW) + 2 <= lowest)
+                while(not((highest - WINDOW) + 2 <= lowest)):
+                    time.sleep(0.1) 
+                    retransmit()
+                    lowest = buffer[sorted(buffer)[0]][1]
+                    highest = buffer[sorted(buffer)[len(buffer)-1]][1]
+                    #means window size would be exceeded if another packet is sent. First re-transmit older packets to make sure window is fine.
+                    while(buffer):
+                        while(q.qsize() > 0):
+                            received_ack = q.get()
+                            if(received_ack in buffer):
+                                del buffer[received_ack]
                 syn_number = (syn_number + len(pl)) % 65536
                 ack_number += 1
                 bytes_ = f.read(1000)
@@ -167,7 +194,7 @@ def sendStream(connected, server_syn_number, syn_number, ack_number, str_id, win
             if(received_ack in buffer):
                 del buffer[received_ack]
         for b in buffer:
-            (hdr, pl) = buffer[b]
+            ((hdr, pl),_) = buffer[b]
             sendPacket(hdr,pl,(destination_ip, destination_port))
         time.sleep(args.timeout/1000)
     send_fin = True
@@ -186,9 +213,7 @@ def getStream():
         if(flags == ACK_FLAG):            
             print("GOT ACK! ", sa)
             q.put(sa)
-        print(flags, send_fin, connected)
         if(flags == FIN_ACK_FLAG):
-            print("FINACK?")
             endConnection(data,addr)
     rec_done = True
     return True
