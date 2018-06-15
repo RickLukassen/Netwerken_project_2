@@ -29,7 +29,9 @@ header_format2 = "IHHBBHIs"
 fin_sent = False
 send_fin = False
 rec_done = False
-
+connected = False
+WINDOW = 5
+q = queue.Queue()
 
 str_id = randint(0,100)
 syn_number = 50
@@ -174,6 +176,7 @@ def endConnection(data, addr):
 
 
 def sendFile():
+    global syn_number, ack_number, str_id, checksum
     #Handshake: 
     connected = False
     #send syn
@@ -220,4 +223,4 @@ def sendFile():
     while(not(send_fin) and not(rec_done) and connected):
         time.sleep(0.05)
 
-#sendFile()
+sendFile()

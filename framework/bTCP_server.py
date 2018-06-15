@@ -145,5 +145,5 @@ def startServer():
                 with open(args.output, "wb") as f:     
                     for t in sorted(incoming_data):
                         f.write(incoming_data[t])
-#startServer()
+startServer()
 
