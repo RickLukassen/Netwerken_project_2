@@ -186,7 +186,7 @@ def sendFile():
     sendPacket(header, payload, (destination_ip, destination_port))
     syn_number += 1
 
-    #receive syn-ack, deal with dropped packets etc: TODO
+    #receive syn-ack, deal with dropped packets
     data, addr = sock.recvfrom(1016)
     (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
     WINDOW_SIZE = window
