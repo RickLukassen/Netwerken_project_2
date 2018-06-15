@@ -2,6 +2,21 @@ import unittest
 import socket
 import time
 import sys
+import os.path
+import bTCP_client
+import bTCP_server
+import filecmp
+import _thread, time
+
+''' 
+Rick Lukassen, s4263812
+Bas Steeg, s4259181
+'''
+'''
+The testing doesn't seem to work, but the test cases are there. We can't get the server and client to run at the same time in this framework it appears. 
+I.e. the server appears to start, but it never receives any data so the client does not seem to run.
+'''
+
 
 timeout=100
 winsize=100
@@ -51,21 +66,25 @@ class TestbTCPFramework(unittest.TestCase):
         """Prepare for testing"""
         # default netem rule (does nothing)
         run_command(netem_add)
-        
+        self.infile = "tmp.file"
+        self.outfile = "tmp2.file"
+        #make sure that the file to be written to doesn't already exist.
+        if(os.path.isfile(self.outfile)):
+            os.remove(self.outfile)
         # launch localhost server
-        
+        bTCP_server.startServer()
 
     def tearDown(self):
         """Clean up after testing"""
         # clean the environment
         run_command(netem_del)
-        
+        bTCP_server.stopServer()
         # close server
 
     def test_ideal_network(self):
         """reliability over an ideal framework"""
         # setup environment (nothing to set)
-
+        bTCP_client.sendFile()
         # launch localhost client connecting to server
         
         # client sends content to server
@@ -73,6 +92,8 @@ class TestbTCPFramework(unittest.TestCase):
         # server receives content from client
         
         # content received by server matches the content sent by client
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
     
     def test_flipping_network(self):
         """reliability over network with bit flips 
@@ -81,12 +102,14 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(netem_change.format("corrupt 1%"))
         
         # launch localhost client connecting to server
-        
+        bTCP_client.sendFile()
         # client sends content to server
         
         # server receives content from client
         
         # content received by server matches the content sent by client
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
 
     def test_duplicates_network(self):
         """reliability over network with duplicate packets"""
@@ -96,10 +119,12 @@ class TestbTCPFramework(unittest.TestCase):
         # launch localhost client connecting to server
         
         # client sends content to server
-        
+        bTCP_client.sendFile()
         # server receives content from client
         
         # content received by server matches the content sent by client
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
 
     def test_lossy_network(self):
         """reliability over network with packet loss"""
@@ -109,11 +134,12 @@ class TestbTCPFramework(unittest.TestCase):
         # launch localhost client connecting to server
         
         # client sends content to server
-        
+        bTCP_client.sendFile()
         # server receives content from client
         
         # content received by server matches the content sent by client
-
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
 
     def test_reordering_network(self):
         """reliability over network with packet reordering"""
@@ -123,10 +149,12 @@ class TestbTCPFramework(unittest.TestCase):
         # launch localhost client connecting to server
         
         # client sends content to server
-        
+        bTCP_client.sendFile()
         # server receives content from client
         
         # content received by server matches the content sent by client
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
         
     def test_delayed_network(self):
         """reliability over network with delay relative to the timeout value"""
@@ -137,9 +165,11 @@ class TestbTCPFramework(unittest.TestCase):
         
         # client sends content to server
         
-        # server receives content from client
+        bTCP_client.sendFile()# server receives content from client
         
         # content received by server matches the content sent by client
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
     
     def test_allbad_network(self):
         """reliability over network with all of the above problems"""
@@ -150,10 +180,12 @@ class TestbTCPFramework(unittest.TestCase):
         # launch localhost client connecting to server
         
         # client sends content to server
-        
+        bTCP_client.sendFile()
         # server receives content from client
         
         # content received by server matches the content sent by client   
+        comp = file.cmp(self.infile, self.outfile)
+        self.assertTrue(comp)
 
   
 #    def test_command(self):

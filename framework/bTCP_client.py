@@ -173,68 +173,51 @@ def endConnection(data, addr):
     connected = False
 
 
-
-#Handshake: 
-connected = False
-#send syn
-print("Send SYN(", syn_number, ",", ack_number, ")")
-payload = bytes("\x00", 'utf8')
-header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
-sendPacket(header, payload, (destination_ip, destination_port))
-syn_number += 1
-
-#receive syn-ack, deal with dropped packets etc: TODO
-data, addr = sock.recvfrom(1016)
-(str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
-WINDOW_SIZE = window
-(payload_a, header_a) = handleData(data)
-
-#Send ACK, open connection
-if(flags == SYN_ACK_FLAG):
-    if(server_ack_number == syn_number):
-        print("Received SYN-ACK (", server_syn_number, ",", server_ack_number, ")")
-        server_syn_number += 1
-        ack_number = server_syn_number
-        print("Send ACK(", syn_number, ",", ack_number, ")")
-        connected = True
-        (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum) = header_a
-        pl = bytes("\x00", 'utf8')
-        WINDOW = window
-        hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
-        sendPacket(hdr, pl, (destination_ip, destination_port))
-        syn_number += 1
-    else:
-        print("SYN or SYN-ACK was lost. Resend.")
-
-#Setup to send/receive data.
-q = queue.Queue()
-sent_all = False
-#Start threads to do the sending and receiving.
-try:
-    a = _thread.start_new_thread(sendStream, (connected,server_syn_number,syn_number,ack_number,str_id,window,checksum) )
-    b = _thread.start_new_thread(getStream, ())
-except:
-    print("Error: unable to start thread")
-
-#Wait until we are done.
-while(not(send_fin) and not(rec_done) and connected):
-    time.sleep(0.05)
-
-'''
-#Send fin
-pl = bytes("\x00", 'utf8')
-hdr = pack("IHHBBHI", str_id, syn_number, ack_number, FIN_FLAG, window, len(pl), checksum)
-sendPacket(hdr,pl,(destination_ip, destination_port))
-#Receive FIN-ACK
-data, addr = sock.recvfrom(1016)
-(pl_a, hdr_a) = handleData(data)
-(str_id, syn_number, ack_number, flags, window, data_len, checksum) = hdr_a
-#Send ACK, close connection
-if(flags == FIN_ACK_FLAG):
-    print("Fin-ack received, send ack, close connection")
-    pl = bytes("\x00", 'utf8')
-    hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), 0)
-    sendPacket(hdr,pl,(destination_ip, destination_port))
+def sendFile():
+    #Handshake: 
     connected = False
-'''
-#disconnect after all data is sent
+    #send syn
+    print("Send SYN(", syn_number, ",", ack_number, ")")
+    payload = bytes("\x00", 'utf8')
+    header = pack("IHHBBHI", str_id, syn_number, ack_number, SYN_FLAG, 0, len(payload), checksum)
+    sendPacket(header, payload, (destination_ip, destination_port))
+    syn_number += 1
+
+    #receive syn-ack, deal with dropped packets etc: TODO
+    data, addr = sock.recvfrom(1016)
+    (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum, pl) = unpack(header_format2,data)
+    WINDOW_SIZE = window
+    (payload_a, header_a) = handleData(data)
+
+    #Send ACK, open connection
+    if(flags == SYN_ACK_FLAG):
+        if(server_ack_number == syn_number):
+            print("Received SYN-ACK (", server_syn_number, ",", server_ack_number, ")")
+            server_syn_number += 1
+            ack_number = server_syn_number
+            print("Send ACK(", syn_number, ",", ack_number, ")")
+            connected = True
+            (str_id, server_syn_number, server_ack_number, flags, window, data_len, checksum) = header_a
+            pl = bytes("\x00", 'utf8')
+            WINDOW = window
+            hdr = pack("IHHBBHI", str_id, syn_number, ack_number, ACK_FLAG, window, len(pl), checksum)
+            sendPacket(hdr, pl, (destination_ip, destination_port))
+            syn_number += 1
+        else:
+            print("SYN or SYN-ACK was lost. Resend.")
+
+    #Setup to send/receive data.
+    q = queue.Queue()
+    sent_all = False
+    #Start threads to do the sending and receiving.
+    try:
+        a = _thread.start_new_thread(sendStream, (connected,server_syn_number,syn_number,ack_number,str_id,window,checksum) )
+        b = _thread.start_new_thread(getStream, ())
+    except:
+        print("Error: unable to start thread")
+
+    #Wait until we are done.
+    while(not(send_fin) and not(rec_done) and connected):
+        time.sleep(0.05)
+
+#sendFile()
